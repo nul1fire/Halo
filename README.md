@@ -4,13 +4,15 @@
   
 **Dynamic Island для Windows**
   
-[![Pre-Release](https://img.shields.io/badge/version-pre--release-orange.svg)]()
-[![Platform](https://img.shields.io/badge/platform-windows-blue.svg)]()
-[![License](https://img.shields.io/badge/license-MIT-green.svg)]()
+![Electron](https://img.shields.io/badge/Electron-191919?style=for-the-badge&logo=electron&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)
+![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
+![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)
   
 </div>
 
-> **⚠️ Внимание:** Это ранняя **Pre-Release** версия. Проект находится в активной разработке. Приложение временно ориентировано на русскоязычных пользователей (СНГ).
+> **⚠️ Внимание:** Это ранняя **Pre-Release** версия. Проект находится в активной разработке и временно ориентирован на русскоязычных пользователей (СНГ).
 
 Прозрачный, плавный и минималистичный Dynamic Island для рабочего стола Windows. Приложение работает поверх всех окон, перехватывает системные события и отображает их в виде красивой анимированной "пилюли" в стиле Apple.
 
@@ -46,14 +48,6 @@
 - 👻 **Click-Through:** Прозрачные зоны окна не блокируют рабочий стол — клики проходят насквозь.
 - ⚙️ **Режимы отображения:** Цикл, только музыка, только часы или скрытый режим.
 
-## 🛠 Технологии
-
-- [Electron](https://www.electronjs.org/) — создание прозрачного overlay-окна.
-- [Vite](https://vitejs.dev/) + [React](https://react.dev/) + TypeScript — быстрый рендеринг UI.
-- [Tailwind CSS](https://tailwindcss.com/) — стилизация.
-- [Framer Motion](https://www.framer.com/motion/) — плавные анимации (crossfade, layout animations).
-- PowerShell (WinRT) — чтение системных медиа-данных без тяжелых C++ аддонов.
-
 ## ⚠️ Известные проблемы
 
 - Нет иконки в системном трее (закрыть можно через меню настроек -> Выход).
@@ -63,26 +57,18 @@
 ## 🚀 Запуск для разработчиков
 
 ```bash
-# 1. Клонировать репозиторий
+# Клонировать репозиторий
 git clone https://github.com/nul1fire/Halo.git
 
-# 2. Установить зависимости
+# Установить зависимости
 npm install
 
-# 3. Запустить в режиме разработки
+# Запустить в режиме разработки
 npm run dev
 
-# 4. Собрать .exe
+# Собрать .exe
 npm run build
 ```
-
-## 📝 План развития (Roadmap)
-
-- Иконка в системном трее.
-- Автозапуск с Windows.
-- Горячие клавиши.
-- Виджеты (погода, системные ресурсы).
-- Стабилизация прогресс-бара.
 
 ## 📄 Лицензия
 
