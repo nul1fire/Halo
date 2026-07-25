@@ -7,7 +7,9 @@ declare global {
     halo: {
       onMediaUpdate: (callback: (data: MediaPayload | null) => void) => void
       onClipboardUpdate: (callback: (text: string) => void) => void
+      onSystemStats: (callback: (data: { cpu: number; ram: number }) => void) => void
       toggleClickThrough: (ignore: boolean) => void
+      controlMedia: (command: 'play' | 'pause' | 'next' | 'prev') => void
       quitApp: () => void
     }
   }

@@ -10,7 +10,16 @@ function Await($WinRtTask, $ResultType) {
 $OutputEncoding = [System.Text.Encoding]::UTF8
 $managerType = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager, Windows.Media.Control, ContentType=WindowsRuntime]
 $manager = Await ($managerType::RequestAsync()) ($managerType)
-$session = $manager.GetCurrentSession()
+$sessions = $manager.GetSessions()
+$bestSession = $null
+foreach ($s in $sessions) {
+    $appId = $s.SourceAppUserModelId
+    if ($appId -match "Telegram") { continue }
+    $status = $s.GetPlaybackInfo().PlaybackStatus
+    if ($status -eq 'Playing') { $bestSession = $s; break }
+    if (-not $bestSession) { $bestSession = $s }
+}
+$session = $bestSession
 if ($session -ne $null) {
     $propsType = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties, Windows.Media.Control, ContentType=WindowsRuntime]
     $props = Await ($session.TryGetMediaPropertiesAsync()) ($propsType)

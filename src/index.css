@@ -1,12 +1,15 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+* {
+  outline: none !important;
+  -webkit-tap-highlight-color: transparent;
+}
 
 html, body, #root {
   margin: 0;
   padding: 0;
-  background: transparent;
   overflow: hidden;
-  width: 100vw;
-  height: 100vh;
+  background: transparent;
 }
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

@@ -1,5 +1,6 @@
 import { exec } from 'node:child_process'
-import { app, BrowserWindow, clipboard, ipcMain, screen } from 'electron'
+import os from 'node:os'
+import { app, BrowserWindow, clipboard, ipcMain, Menu, nativeImage, screen, Tray } from 'electron'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -9,9 +10,40 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const isDev = !app.isPackaged
 
 const GET_MEDIA_SCRIPT = path.join(__dirname, '..', 'get-media.ps1')
+const CONTROL_MEDIA_SCRIPT = path.join(__dirname, '..', 'control-media.ps1')
 
 let lastClipboardText = ''
 let mainWindow
+let tray = null
+let openAtLogin = false
+
+let prevCpu = { idle: 0, total: 0 }
+
+function getCpuUsage() {
+  const cpus = os.cpus()
+  let idle = 0
+  let total = 0
+  cpus.forEach((cpu) => {
+    for (const type in cpu.times) total += cpu.times[type]
+    idle += cpu.times.idle
+  })
+  const idleDiff = idle - prevCpu.idle
+  const totalDiff = total - prevCpu.total
+  prevCpu = { idle, total }
+  return totalDiff > 0 ? Math.round((1 - idleDiff / totalDiff) * 100) : 0
+}
+
+function startSystemStatsPolling(mainWindow) {
+  return setInterval(() => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      const cpuUsage = getCpuUsage()
+      const totalMem = os.totalmem()
+      const freeMem = os.freemem()
+      const ramUsage = Math.round(((totalMem - freeMem) / totalMem) * 100)
+      mainWindow.webContents.send('system-stats', { cpu: cpuUsage, ram: ramUsage })
+    }
+  }, 2000)
+}
 
 function pollMedia(mainWindow) {
   exec(
@@ -111,19 +143,63 @@ function createWindow() {
 
   const mediaInterval = startMediaPolling(mainWindow)
   const clipboardInterval = startClipboardMonitoring(mainWindow)
+  const systemStatsInterval = startSystemStatsPolling(mainWindow)
 
   mainWindow.on('closed', () => {
     clearInterval(mediaInterval)
     clearInterval(clipboardInterval)
+    clearInterval(systemStatsInterval)
   })
 }
 
-app.whenReady().then(createWindow)
+app.whenReady().then(() => {
+  createWindow()
+
+  const icon = nativeImage.createFromPath(path.join(__dirname, '..', 'build', 'icon.ico'))
+
+  function updateTrayMenu() {
+    const contextMenu = Menu.buildFromTemplate([
+      {
+        label: 'Запускать с Windows',
+        type: 'checkbox',
+        checked: openAtLogin,
+        click: () => {
+          openAtLogin = !openAtLogin
+          app.setLoginItemSettings({ openAtLogin })
+          updateTrayMenu()
+        },
+      },
+      { type: 'separator' },
+      {
+        label: 'Выход',
+        click: () => app.quit(),
+      },
+    ])
+    tray.setContextMenu(contextMenu)
+  }
+
+  tray = new Tray(icon)
+  tray.setToolTip('Halo - Dynamic Island')
+
+  const settings = app.getLoginItemSettings()
+  openAtLogin = settings.openAtLogin
+  updateTrayMenu()
+})
 
 ipcMain.on('quit-app', () => app.quit())
 
 ipcMain.on('toggle-click-through', (event, ignore) => {
   if (mainWindow) mainWindow.setIgnoreMouseEvents(ignore, { forward: true })
+})
+
+ipcMain.on('control-media', (_event, command) => {
+  exec(
+    `powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "${CONTROL_MEDIA_SCRIPT}" ${command}`,
+    { windowsHide: true, timeout: 3000 },
+    (error) => {
+      if (error) console.error('Media control error:', error)
+    },
+  )
 })
 
 app.on('window-all-closed', () => {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function App() {
@@ -8,9 +8,13 @@ export default function App() {
   const [batteryData, setBatteryData] = useState<{ charging: boolean; level: number } | null>(null);
   const [showBattery, setShowBattery] = useState(false);
   const [clipboardData, setClipboardData] = useState<string | null>(null);
+  const [systemStats, setSystemStats] = useState<{ cpu: number; ram: number } | null>(null);
 
-  const [mode, setMode] = useState<'cycle' | 'music' | 'clock' | 'idle'>('cycle');
+  const [mode, setMode] = useState<'cycle' | 'music' | 'clock' | 'system' | 'idle'>('cycle');
   const [showMenu, setShowMenu] = useState(false);
+  const [showControls, setShowControls] = useState(false);
+  const [isOptimistic, setIsOptimistic] = useState(false);
+  const lastClickTime = useRef(0);
   const [cycleIndex, setCycleIndex] = useState(0);
 
   useEffect(() => {
@@ -25,11 +29,26 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    window.halo.onMediaUpdate((data: any) => setMediaData(data));
+    window.halo.onMediaUpdate((data: any) => {
+      if (data) {
+        const timeSinceLastClick = Date.now() - lastClickTime.current;
+        const isOptimisticUpdate = timeSinceLastClick < 3000;
+
+        setMediaData((prev: any) => {
+          if (prev && prev.title === data.title && isOptimisticUpdate) {
+            return { ...prev, thumbnail: data.thumbnail };
+          }
+          return data;
+        });
+      } else {
+        setMediaData(null);
+      }
+    });
     window.halo.onClipboardUpdate((text: string) => {
       setClipboardData(text);
       setTimeout(() => setClipboardData(null), 4000);
     });
+    window.halo.onSystemStats((data) => setSystemStats(data));
 
     let battery: any;
     const updateBattery = () => {
@@ -53,20 +72,41 @@ export default function App() {
 
   useEffect(() => {
     if (mode === 'cycle') {
-      const int = setInterval(() => setCycleIndex((prev) => (prev + 1) % 3), 5000);
+      const int = setInterval(() => setCycleIndex((prev) => (prev + 1) % 4), 5000);
       return () => clearInterval(int);
     }
   }, [mode]);
+
+  useEffect(() => {
+    if (!mediaData) setShowControls(false);
+  }, [mediaData]);
+
+  const handleControl = (command: 'play' | 'pause' | 'next' | 'prev') => {
+    lastClickTime.current = Date.now();
+    setIsOptimistic(true);
+
+    if (command === 'play') setMediaData((prev: any) => prev ? { ...prev, isPlaying: true } : prev);
+    if (command === 'pause') setMediaData((prev: any) => prev ? { ...prev, isPlaying: false } : prev);
+
+    window.halo.controlMedia(command);
+
+    setTimeout(() => {
+      const timeSinceLastClick = Date.now() - lastClickTime.current;
+      if (timeSinceLastClick >= 3000) setIsOptimistic(false);
+    }, 3000);
+  };
 
   let currentState = 'idle';
   if (clipboardData) currentState = 'clipboard';
   else if (showBattery && batteryData) currentState = 'battery';
   else if (mode === 'cycle') {
-    const states = ['idle', 'clock', 'music'];
+    const states = ['idle', 'clock', 'music', 'system'];
     currentState = states[cycleIndex];
     if (currentState === 'music' && !mediaData) currentState = 'demo-music'; 
   } else if (mode === 'music') currentState = mediaData ? 'music' : 'idle';
   else if (mode === 'clock') currentState = 'clock';
+  else if (mode === 'system') currentState = systemStats ? 'system' : 'idle';
+  else if (mode === 'idle') currentState = 'idle';
 
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh' }}>
@@ -75,6 +115,7 @@ export default function App() {
           layout 
           drag
           dragMomentum={false}
+          whileTap={{ cursor: 'grabbing' }}
           onMouseEnter={() => window.halo.toggleClickThrough(false)}
           onMouseLeave={() => window.halo.toggleClickThrough(true)}
           transition={{ layout: { type: "spring", damping: 25, stiffness: 300 } }}
@@ -101,7 +142,16 @@ export default function App() {
               )}
 
               {(currentState === 'music' || currentState === 'demo-music') && (
-                <motion.div key="music" className="flex items-center gap-3" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} transition={{ duration: 0.3 }}>
+                <motion.div
+                  key="music"
+                  className="flex items-center gap-3"
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  transition={{ duration: 0.3 }}
+                  onMouseEnter={() => setShowControls(true)}
+                  onMouseLeave={() => setShowControls(false)}
+                >
                   <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-gray-600 flex items-center justify-center">
                     {mediaData?.thumbnail ? <img src={`data:image/png;base64,${mediaData.thumbnail}`} className="w-full h-full object-cover pointer-events-none" draggable="false" /> : <svg width="20" height="20" viewBox="0 0 24 24" fill="white" opacity="0.5"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>}
                   </div>
@@ -109,10 +159,51 @@ export default function App() {
                     <span className="text-sm font-medium truncate max-w-[120px]">{mediaData?.title || 'Echoes'}</span>
                     <span className="text-xs text-gray-400 truncate max-w-[120px]">{mediaData?.artist || 'Halo System'}</span>
                   </div>
-                  <div className="flex items-end gap-0.5 h-4 ml-2">
-                    <motion.div className="w-1 bg-white rounded-full" animate={{ height: mediaData?.isPlaying ? ["20%", "100%", "40%"] : "30%" }} transition={{ duration: 0.8, repeat: Infinity, repeatType: "mirror" }}></motion.div>
-                    <motion.div className="w-1 bg-white rounded-full" animate={{ height: mediaData?.isPlaying ? ["40%", "20%", "100%"] : "30%" }} transition={{ duration: 0.8, repeat: Infinity, repeatType: "mirror", delay: 0.2 }}></motion.div>
-                    <motion.div className="w-1 bg-white rounded-full" animate={{ height: mediaData?.isPlaying ? ["100%", "40%", "20%"] : "30%" }} transition={{ duration: 0.8, repeat: Infinity, repeatType: "mirror", delay: 0.4 }}></motion.div>
+                  <div className="relative flex items-center justify-end w-12 h-6 ml-2">
+                    <div className="flex items-end gap-0.5 h-4 absolute" style={{ opacity: showControls ? 0 : 1, transition: 'opacity 0.2s' }}>
+                      <motion.div className="w-1 bg-white rounded-full" animate={{ height: mediaData?.isPlaying ? ["20%", "100%", "40%"] : "30%" }} transition={{ duration: 0.8, repeat: Infinity, repeatType: "mirror" }}></motion.div>
+                      <motion.div className="w-1 bg-white rounded-full" animate={{ height: mediaData?.isPlaying ? ["40%", "20%", "100%"] : "30%" }} transition={{ duration: 0.8, repeat: Infinity, repeatType: "mirror", delay: 0.2 }}></motion.div>
+                      <motion.div className="w-1 bg-white rounded-full" animate={{ height: mediaData?.isPlaying ? ["100%", "40%", "20%"] : "30%" }} transition={{ duration: 0.8, repeat: Infinity, repeatType: "mirror", delay: 0.4 }}></motion.div>
+                    </div>
+
+                    {mediaData && (
+                      <div className="flex items-center gap-2 absolute" style={{ opacity: showControls ? 1 : 0, transition: 'opacity 0.2s' }}>
+                        <button onClick={() => handleControl('prev')} className="text-white hover:scale-110 transition-transform focus:outline-none">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+                        </button>
+                        <button onClick={() => handleControl(mediaData.isPlaying ? 'pause' : 'play')} className="text-white hover:scale-110 transition-transform focus:outline-none">
+                          {mediaData.isPlaying ? (
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M6 4h4v16H6zm8 0h4v16h-4z"/></svg>
+                          ) : (
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>
+                          )}
+                        </button>
+                        <button onClick={() => handleControl('next')} className="text-white hover:scale-110 transition-transform focus:outline-none">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+
+              {currentState === 'system' && systemStats && (
+                <motion.div key="system" className="flex items-center gap-3" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} transition={{ duration: 0.3 }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect>
+                    <rect x="9" y="9" width="6" height="6"></rect>
+                    <line x1="9" y1="1" x2="9" y2="4"></line>
+                    <line x1="15" y1="1" x2="15" y2="4"></line>
+                    <line x1="9" y1="20" x2="9" y2="23"></line>
+                    <line x1="15" y1="20" x2="15" y2="23"></line>
+                    <line x1="20" y1="9" x2="23" y2="9"></line>
+                    <line x1="20" y1="14" x2="23" y2="14"></line>
+                    <line x1="1" y1="9" x2="4" y2="9"></line>
+                    <line x1="1" y1="14" x2="4" y2="14"></line>
+                  </svg>
+                  <div className="flex flex-col leading-tight">
+                    <span className="text-sm font-medium">CPU: {systemStats.cpu}%</span>
+                    <span className="text-xs text-gray-400">RAM: {systemStats.ram}%</span>
                   </div>
                 </motion.div>
               )}
@@ -151,6 +242,7 @@ export default function App() {
             <motion.div 
               drag
               dragMomentum={false}
+              whileTap={{ cursor: 'grabbing' }}
               onMouseEnter={() => window.halo.toggleClickThrough(false)}
               onMouseLeave={() => window.halo.toggleClickThrough(true)}
               initial={{ opacity: 0, y: -5 }} 
@@ -169,6 +261,7 @@ export default function App() {
                 <button className="text-left px-3 py-1.5 text-sm rounded-lg hover:bg-zinc-800 text-white transition-colors" onClick={() => { setMode('cycle'); setShowMenu(false); }}>Цикл</button>
                 <button className="text-left px-3 py-1.5 text-sm rounded-lg hover:bg-zinc-800 text-white transition-colors" onClick={() => { setMode('music'); setShowMenu(false); }}>Только Музыка</button>
                 <button className="text-left px-3 py-1.5 text-sm rounded-lg hover:bg-zinc-800 text-white transition-colors" onClick={() => { setMode('clock'); setShowMenu(false); }}>Только Часы</button>
+                <button className="text-left px-3 py-1.5 text-sm rounded-lg hover:bg-zinc-800 text-white transition-colors" onClick={(e) => { e.stopPropagation(); setMode('system'); setShowMenu(false); }}>Только Система</button>
                 <button className="text-left px-3 py-1.5 text-sm rounded-lg hover:bg-zinc-800 text-white transition-colors" onClick={() => { setMode('idle'); setShowMenu(false); }}>Скрывать</button>
                 <div className="h-px bg-zinc-800 my-1"></div>
                 <button className="text-left px-3 py-1.5 text-sm rounded-lg hover:bg-red-900 text-red-400 transition-colors" onClick={() => window.halo.quitApp()}>Выход</button>

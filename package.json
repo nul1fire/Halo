@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "concurrently \"vite --port 5174 --strictPort\" \"wait-on http://localhost:5174 && electron .\"",
     "build": "vite build && electron-builder",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "generate-icon": "node scripts/generate-icons.js"
   },
   "build": {
     "appId": "com.halo.island",
@@ -15,7 +16,9 @@
     "files": [
       "dist/**/*",
       "electron/**/*",
-      "get-media.ps1"
+      "get-media.ps1",
+      "control-media.ps1",
+      "build/**/*"
     ],
     "win": {
       "target": "nsis"
@@ -29,7 +32,9 @@
   "dependencies": {
     "framer-motion": "^12.42.2",
     "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "react-dom": "^19.2.7",
+    "sharp": "^0.35.3",
+    "to-ico": "^1.1.5"
   },
   "devDependencies": {
     "@types/node": "^24.13.2",
